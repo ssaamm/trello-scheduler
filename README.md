@@ -5,6 +5,7 @@ Easy recurring tasks within Trello
 
 Dependencies
 ------------
-* ```pip```
+* ```py-trello```
 * ```pika```
-
+* ```sqlite3```
+* ```python-dateutil```

@@ -1,18 +1,45 @@
-import pika, pickle
-from Job import AddCardJob
+import pika, pickle, time, datetime
+
+from dateutil import rrule, parser
+
+from models import AddCardRecurrence
+from data import DbClient
 
 connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
 channel = connection.channel()
-channel.queue_declare(queue = "addcard")
+channel.queue_declare(queue = "addcard", durable = True)
 
-test_board_id = "5485dda4eb47513ae71bd0b0"
-apples_list_id = "5485df9de28db973c841d213"
-jobs = [AddCardJob(test_board_id, apples_list_id, "Golden delicious", None),
-    AddCardJob(test_board_id, apples_list_id, "Red delicious", "yay delicious")]
+db_client = DbClient()
 
-for job in jobs:
-    channel.basic_publish(exchange = "", routing_key = "addcard",
-        body = pickle.dumps(job))
-    print pickle.dumps(job)
+def publish(add_card_recurrence):
+    channel.basic_publish(exchange = "", routing_key = "addcard", body =
+            pickle.dumps(add_card_recurrence), properties =
+            pika.BasicProperties(delivery_mode = 2))
+    print "Published", r.name
 
-connection.close()
+if __name__ == "__main__":
+    while True:
+        recurrences = db_client.get_all_recurrences() 
+        now = datetime.datetime.now()
+        for r in recurrences:
+            print "===========", r.name, "============"
+
+            after = None
+            if r.last_run_date is None:
+                rr = rrule.rrulestr(r.rrule)
+                after = rr[0]
+            else:
+                last_run_date = parser.parse(r.last_run_date)
+                rr = rrule.rrulestr(r.rrule, dtstart = last_run_date)
+                after = rr.after(last_run_date)
+
+            print "\tLAST RUN: ", last_run_date
+            print "\tNOW:      ", now
+            print "\tAFTER:    ", after
+
+            if after <= now:
+                publish(r)
+
+        time.sleep(10)
+
+    connection.close()
